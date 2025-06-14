@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Заметки</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 20px;
+    }
+
+    #addNoteBtn {
+      padding: 10px 20px;
+      background: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      user-select: none; /* Запрещает выделение текста на кнопке */
+    }
+
+    .note {
+      position: absolute;
+      padding: 10px 30px 10px 10px;
+      border: 1px solid #555;
+      border-radius: 8px;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+      cursor: move;
+      color: white;
+      text-shadow: 0 0 1px black;
+      transition: transform 0.3s ease;
+      user-select: none; /* Запрещает выделение текста на заметке */
+    }
+
+    .note-title {
+      font-weight: bold;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .edit-icon {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 14px;
+      height: 14px;
+      background: #000;
+      border: 2px solid white;
+      cursor: pointer;
+      border-radius: 2px;
+      user-select: none; /* Запрещает выделение текста на кнопке редактирования */
+    }
+
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-width: 300px;
+      max-height: 150px;
+      overflow-y: auto;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+      z-index: 9999;
+    }
+
+    #noteModal, #editModal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+
+    .modal-content {
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      color: white;
+      z-index: 10001;
+    }
+
+    .modal-content input, .modal-content textarea, .modal-content select {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      border-radius: 5px;
+    }
+
+    .modal-content button {
+      padding: 8px 12px;
+      margin-right: 8px;
+      background: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      user-select: none; /* Запрещает выделение текста на кнопках */
+    }
+
+    .modal-content .delete-btn {
+      background: #e53935;
+    }
+  </style>
+</head>
+<body>
+
+<button id="addNoteBtn">Добавить заметку</button>
+
+<div id="noteModal">
+  <div class="modal-content">
+    <h3>Новая заметка</h3>
+    <input type="text" id="noteTitle" placeholder="Заголовок" />
+    <textarea id="noteDesc" placeholder="Описание"></textarea>
+    <label>Цвет:</label>
+    <input type="color" id="noteColor" value="#444444" />
+    <button onclick="addNote()">Добавить</button>
+    <button onclick="closeModal()">Отмена</button>
+  </div>
+</div>
+
+<div id="editModal">
+  <div class="modal-content">
+    <h3>Редактировать заметку</h3>
+    <input type="text" id="editTitle" />
+    <textarea id="editDesc"></textarea>
+    <label>Цвет:</label>
+    <input type="color" id="editColor" />
+    <button onclick="saveEdit()">Сохранить</button>
+    <button class="delete-btn" onclick="deleteNote()">Удалить</button>
+    <button onclick="closeEditModal()">Отмена</button>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+  const noteModal = document.getElementById("noteModal");
+  const editModal = document.getElementById("editModal");
+  const tooltip = document.getElementById("tooltip");
+  const addNoteBtn = document.getElementById("addNoteBtn");
+
+  let zIndexCounter = 1;
+  let editTarget = null;
+  let mouseX = 100, mouseY = 100;
+  let notes = [];
+  let hoveredNote = null;  // Переменная для хранения заметки, на которую наведена мышка
+
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  addNoteBtn.onclick = () => {
+    document.getElementById("noteTitle").value = "";
+    document.getElementById("noteDesc").value = "";
+    document.getElementById("noteColor").value = "#444444";
+    noteModal.style.display = "flex";
+  };
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "1") {
+      createNoteAt("Пусто", "", "#444444", mouseX, mouseY);
+    } else if (e.key === "2") {
+      createNoteAt("→", "Стрелка вправо", "#444444", mouseX, mouseY);
+    } else if (e.key === "3") {
+      createNoteAt("↓", "Стрелка вниз", "#444444", mouseX, mouseY);
+    } else if (e.key === "4") {
+      createNoteAt("←", "Стрелка влево", "#444444", mouseX, mouseY);
+    } else if (e.key === "5") {
+      createNoteAt("↑", "Стрелка вверх", "#444444", mouseX, mouseY);
+    } else if (e.key === "x" || e.key === "X") {
+      removeNoteUnderMouse();
+    } else if (e.key === "e" || e.key === "E") {
+      openEditModalForHoveredNote();
+    }
+  });
+
+  function closeModal() {
+    noteModal.style.display = "none";
+  }
+
+  function closeEditModal() {
+    editModal.style.display = "none";
+  }
+
+  function addNote() {
+    let title = document.getElementById("noteTitle").value.trim() || "Пусто";
+    let desc = document.getElementById("noteDesc").value.trim();
+    let color = document.getElementById("noteColor").value || "#444444";
+    createNoteAt(title, desc, color);
+    closeModal();
+  }
+
+  function createNoteAt(title, desc, color, x = Math.random() * 300, y = Math.random() * 300) {
+    const note = document.createElement("div");
+    note.className = "note";
+    note.style.top = y + "px";
+    note.style.left = x + "px";
+    note.style.backgroundColor = color;
+    note.style.zIndex = zIndexCounter++;
+
+    const noteTitle = document.createElement("div");
+    noteTitle.className = "note-title";
+    noteTitle.textContent = title;
+
+    const editIcon = document.createElement("div");
+    editIcon.className = "edit-icon";
+
+    editIcon.onclick = (e) => {
+      e.stopPropagation();
+      openEdit(note, noteTitle.textContent, desc, color);
+    };
+
+    note.appendChild(noteTitle);
+    note.appendChild(editIcon);
+    document.body.appendChild(note);
+
+    note.style.color = 'white';
+    note.style.textShadow = '0 0 1px black';
+
+    note.onmouseenter = () => {
+      hoveredNote = note;  // Сохраняем заметку, на которую наведена мышка
+      tooltip.textContent = desc;
+      tooltip.style.opacity = 1;
+      tooltip.style.visibility = "visible";
+      tooltip.style.top = mouseY + 10 + "px";
+      tooltip.style.left = mouseX + 10 + "px";
+    };
+
+    note.onmouseleave = () => {
+      hoveredNote = null;  // Сбрасываем переменную при уходе мышки
+      tooltip.style.opacity = 0;
+      tooltip.style.visibility = "hidden";
+    };
+
+    note.onmousemove = (e) => {
+      tooltip.style.top = e.pageY + 10 + "px";
+      tooltip.style.left = e.pageX + 10 + "px";
+    };
+
+    notes.push(note);
+    makeDraggable(note);
+  }
+
+  function removeNoteUnderMouse() {
+    const noteToDelete = notes.find(note => {
+      const rect = note.getBoundingClientRect();
+      return mouseX > rect.left && mouseX < rect.right && mouseY > rect.top && mouseY < rect.bottom;
+    });
+
+    if (noteToDelete) {
+      noteToDelete.remove();
+      notes = notes.filter(note => note !== noteToDelete);
+      
+      // Удаляем описание, если оно было
+      tooltip.style.opacity = 0;
+      tooltip.style.visibility = "hidden";
+    }
+  }
+
+  function openEdit(note, title, desc, color) {
+    editTarget = note;
+    document.getElementById("editTitle").value = title;
+    document.getElementById("editDesc").value = desc;
+    document.getElementById("editColor").value = rgbToHex(note.style.backgroundColor);
+    editModal.style.display = "flex";
+  }
+
+  function openEditModalForHoveredNote() {
+    if (hoveredNote) {
+      const title = hoveredNote.querySelector(".note-title").textContent;
+      const desc = hoveredNote.getAttribute('data-desc') || '';
+      const color = hoveredNote.style.backgroundColor;
+      openEdit(hoveredNote, title, desc, color);
+    }
+  }
+
+  function saveEdit() {
+    const newTitle = document.getElementById("editTitle").value.trim() || "Пусто";
+    const newDesc = document.getElementById("editDesc").value.trim();
+    const newColor = document.getElementById("editColor").value;
+
+    if (!editTarget) return;
+
+    editTarget.querySelector(".note-title").textContent = newTitle;
+    editTarget.style.backgroundColor = newColor;
+    editTarget.style.color = 'white';
+    editTarget.style.textShadow = '0 0 1px black';
+
+    editTarget.setAttribute('data-desc', newDesc); // Сохраняем описание
+
+    closeEditModal();
+  }
+
+  function deleteNote() {
+    if (editTarget) {
+      editTarget.remove();
+      notes = notes.filter(note => note !== editTarget);
+      closeEditModal();
+    }
+  }
+
+  function makeDraggable(el) {
+    let offsetX = 0, offsetY = 0, isDown = false;
+
+    el.addEventListener('mousedown', function(e) {
+      isDown = true;
+      offsetX = e.clientX - el.offsetLeft;
+      offsetY = e.clientY - el.offsetTop;
+      el.style.zIndex = zIndexCounter++;
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isDown) return;
+      el.style.left = e.clientX - offsetX + 'px';
+      el.style.top = e.clientY - offsetY + 'px';
+    });
+
+    document.addEventListener('mouseup', function() {
+      isDown = false;
+    });
+  }
+
+  function rgbToHex(rgb) {
+    const result = rgb.match(/\d+/g);
+    if (!result) return "#444444";
+    return "#" + result.map(x => {
+      const hex = parseInt(x).toString(16);
+      return hex.length == 1 ? "0" + hex : hex;
+    }).join('');
+  }
+</script>
+
+</body>
+</html>
